@@ -23,7 +23,7 @@ int main(void)
                 fgets(cmd, CMDLINE_MAX, stdin);
 
                 /* Print command line if stdin is not provided by terminal */
-                if (!isatty(STDIN_FILENO)) 
+                if (!isatty(STDIN_FILENO))
                 {
                         printf("%s", cmd);
                         fflush(stdout);
@@ -70,7 +70,21 @@ int main(void)
                 }
 
                 /* Regular command */
-                retval = system(cmd);
+                int pid = fork();
+            		//printf("PID: %d\n", pid);
+            		if(pid > 0)
+            	  {
+            			int status;
+            			waitpid(pid, &status, 0);
+            			if(WIFEXITED(status))
+            				retval = WEXITSTATUS(status);
+            			else
+            				retval = 1;
+            		}
+            		else if(pid == 0)
+            		{
+            			execvp(args[0], args);
+            		}
                 fprintf(stdout, "Return status value for '%s': %d\n",
                         cmd, retval);
         }
