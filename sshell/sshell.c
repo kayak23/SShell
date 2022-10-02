@@ -58,6 +58,7 @@ int main(void)
                         else if(cmd[input_iter] == '>') //output redirect
                         {
                                 //if(cmd[input_iter-1] == '2'); //std error
+                                cmd[input_iter] = '\0';
                                 input_iter++;
                                 while(cmd[input_iter] == ' ') input_iter++;
                                 char* filename = cmd + input_iter;
@@ -67,11 +68,14 @@ int main(void)
                                         cmd[input_iter] = '\0';
                                         fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                                         if(fd_redir[1]) is_redir[1] = 1;
+                                        args[arg_iter-1] = cmd + input_iter;
                                 }
                                 else if(cmd[input_iter] == '\0')
                                 {
                                         fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                                         if(fd_redir[1]) is_redir[1] = 1;
+                                        args[arg_iter-1] = NULL;
+                                        break;
                                 }
                         }
                         
