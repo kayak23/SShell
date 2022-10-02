@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #define CMDLINE_MAX 512
 #define MAX_ARGS 20
@@ -15,8 +16,8 @@ int main(void)
                 int retval;
                 char * args[MAX_ARGS];
                 int input_iter = 0;
-                bool* is_redir = {0, 0, 0};
-                int* fd_redir = {-1, -1, -1};
+		int is_redir[3] = {0, 0, 0};
+		int fd_redir[3] = {-1, -1, -1};
 
                 /* Print prompt */
                 printf("sshell$ ");
@@ -80,11 +81,11 @@ int main(void)
                         }
                 }
 
-                int i = 0;
+                /*int i = 0;
                 while(args[i] != NULL)
                 {
                         printf("%d: %s\n", i, args[i++]);
-                }
+                }*/
 
                 /* Builtin command */
                 if (!strcmp(cmd, "exit")) {
@@ -94,20 +95,23 @@ int main(void)
 
                 /* Regular command */
                 int pid = fork();
-            		//printf("PID: %d\n", pid);
-            		if(pid > 0)
-            	  {
-            			int status;
-            			waitpid(pid, &status, 0);
-            			if(WIFEXITED(status))
-            				retval = WEXITSTATUS(status);
-            			else
-            				retval = 1;
-            		}
-            		else if(pid == 0)
-            		{
-            			execvp(args[0], args);
-            		}
+            	//printf("PID: %d\n", pid);
+            	if(pid > 0)
+            	{
+            		int status;
+            		waitpid(pid, &status, 0);
+            		if(WIFEXITED(status))
+            			retval = WEXITSTATUS(status);
+            		else
+            			retval = 1;
+            	}
+            	else if(pid == 0)
+            	{
+			for(i = 0; i < 3; i++) 
+				if(is_redir[i])
+					dup2(fd_redir, i);
+            		execvp(args[0], args);
+            	}
                 fprintf(stdout, "Return status value for '%s': %d\n",
                         cmd, retval);
         }
