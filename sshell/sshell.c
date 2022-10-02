@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #define CMDLINE_MAX 512
+#define MAX_ARGS 20
 
 int main(void)
 {
@@ -12,8 +13,10 @@ int main(void)
         while (1) {
                 char *nl;
                 int retval;
-                char * args[20];
+                char * args[MAX_ARGS];
                 int input_iter = 0;
+                bool* is_redir = {0, 0, 0};
+                int* fd_redir = {-1, -1, -1};
 
                 /* Print prompt */
                 printf("sshell$ ");
@@ -36,12 +39,12 @@ int main(void)
 
                 args[0] = cmd;
                 int arg_iter = 1;
-                for( ; input_iter < 512; input_iter++)
+                for( ; input_iter < CMDLINE_MAX; input_iter++)
                 {
-                        if(cmd[input_iter] == ' ')
+                        if(cmd[input_iter] == ' ') //current arguement is complete
                         {
                                 cmd[input_iter] = '\0';
-                                while(cmd[input_iter+1] == ' ') input_iter++;
+                                while(cmd[input_iter+1] == ' ') input_iter++; //check for extra spaces
                                 if(cmd[input_iter+1] == '\0')
                                 {
                                         args[arg_iter] = NULL;
@@ -50,6 +53,26 @@ int main(void)
                                 args[arg_iter++] = cmd + input_iter + 1;
 
                         }
+                        else if(cmd[input_iter] == '>') //output redirect
+                        {
+                                if(cmd[input_iter-1] == '2'); //std error
+                                input_iter++;
+                                while(cmd[input_iter] == ' ') input_iter++;
+                                char* filename = cmd + input_iter;
+                                while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
+                                if(cmd[input_iter] == ' ')
+                                {
+                                        cmd[input_iter] = '\0';
+                                        fd_redir[1] = open(filename, O_WRONLY);
+                                        if(fd_redir[1]) is_redir[1] = 1;
+                                }
+                                else if(cmd[input_iter] == '\0')
+                                {
+                                        fd_redir[1] = open(filename, O_WRONLY);
+                                        if(fd_redir[1]) is_redir[1] = 1;
+                                }
+                        }
+                        
                         else if(cmd[input_iter] == '\0')
                         {
                                 args[arg_iter] = NULL;
