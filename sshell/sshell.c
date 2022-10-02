@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define CMDLINE_MAX 512
 #define MAX_ARGS 20
@@ -56,7 +57,7 @@ int main(void)
                         }
                         else if(cmd[input_iter] == '>') //output redirect
                         {
-                                if(cmd[input_iter-1] == '2'); //std error
+                                //if(cmd[input_iter-1] == '2'); //std error
                                 input_iter++;
                                 while(cmd[input_iter] == ' ') input_iter++;
                                 char* filename = cmd + input_iter;
@@ -64,12 +65,12 @@ int main(void)
                                 if(cmd[input_iter] == ' ')
                                 {
                                         cmd[input_iter] = '\0';
-                                        fd_redir[1] = open(filename, O_WRONLY);
+                                        fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                                         if(fd_redir[1]) is_redir[1] = 1;
                                 }
                                 else if(cmd[input_iter] == '\0')
                                 {
-                                        fd_redir[1] = open(filename, O_WRONLY);
+                                        fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                                         if(fd_redir[1]) is_redir[1] = 1;
                                 }
                         }
@@ -107,9 +108,10 @@ int main(void)
             	}
             	else if(pid == 0)
             	{
+			int i;
 			for(i = 0; i < 3; i++) 
 				if(is_redir[i])
-					dup2(fd_redir, i);
+					dup2(fd_redir[i], i);
             		execvp(args[0], args);
             	}
                 fprintf(stdout, "Return status value for '%s': %d\n",
