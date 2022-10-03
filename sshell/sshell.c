@@ -7,6 +7,7 @@
 
 #define CMDLINE_MAX 512
 #define MAX_ARGS 20
+#define PATH_MAX 4096
 
 int main(void)
 {
@@ -17,8 +18,8 @@ int main(void)
                 int retval;
                 char * args[MAX_ARGS];
                 int input_iter = 0;
-		int is_redir[3] = {0, 0, 0};
-		int fd_redir[3] = {-1, -1, -1};
+            		int is_redir[3] = {0, 0, 0};
+            		int fd_redir[3] = {0, 1, 2};
 
                 /* Print prompt */
                 printf("sshell$ ");
@@ -78,7 +79,7 @@ int main(void)
                                         break;
                                 }
                         }
-                        
+
                         else if(cmd[input_iter] == '\0')
                         {
                                 args[arg_iter] = NULL;
@@ -93,33 +94,49 @@ int main(void)
                 }*/
 
                 /* Builtin command */
-                if (!strcmp(cmd, "exit")) {
+                if(!strcmp(cmd, "exit")) {
                         fprintf(stderr, "Bye...\n");
                         break;
                 }
-
-                /* Regular command */
-                int pid = fork();
-            	//printf("PID: %d\n", pid);
-            	if(pid > 0)
-            	{
-            		int status;
-            		waitpid(pid, &status, 0);
-            		if(WIFEXITED(status))
-            			retval = WEXITSTATUS(status);
+            		else if(!strcmp(args[0], "pwd"))
+            		{
+            			char cwd[PATH_MAX];
+            			if(getcwd(cwd, sizeof(cwd)) == NULL)
+            				retval = 1;
+            			else
+            			{
+            				dprintf(fd_redir[1], "%s\n", cwd);
+            				retval = 0;
+            			}
+            		}
+            		else if(!strcmp(args[0], "cd"))
+            			retval = abs(chdir(args[1]));
             		else
-            			retval = 1;
-            	}
-            	else if(pid == 0)
-            	{
-			int i;
-			for(i = 0; i < 3; i++) 
-				if(is_redir[i])
-					dup2(fd_redir[i], i);
-            		execvp(args[0], args);
-            	}
-                fprintf(stdout, "Return status value for '%s': %d\n",
-                        cmd, retval);
+            		{
+                	/* Regular command */
+                	int pid = fork();
+            	  	//printf("PID: %d\n", pid);
+              		if(pid > 0)
+              		{
+              			int status;
+              			waitpid(pid, &status, 0);
+              			if(WIFEXITED(status))
+              				retval = WEXITSTATUS(status);
+              			else
+              				retval = 1;
+              		}
+              		else if(pid == 0)
+              		{
+            				int i;
+            				for(i = 0; i < 3; i++)
+            					if(is_redir[i])
+            						dup2(fd_redir[i], i);
+                        			execvp(args[0], args);
+            				exit(1);
+                		}
+            		}
+                            fprintf(stdout, "Return status value for '%s': %d\n",
+                                    cmd, retval);
         }
 
         return EXIT_SUCCESS;
