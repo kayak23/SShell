@@ -6,8 +6,15 @@
 #include <fcntl.h>
 
 #define CMDLINE_MAX 512
-#define MAX_ARGS 20
+#define MAX_ARGS 16
 #define PATH_MAX 4096
+#define MAX_PIPE 4
+
+struct command
+{
+        char *args[MAX_ARGS+1];
+        int fd_redir[3];
+};
 
 struct Stack 
 {
@@ -58,9 +65,9 @@ int main(void)
 	{
                 char *nl;
                 int retval;
-                char *args[MAX_ARGS];
+                char *args[MAX_ARGS+1];
                 int input_iter = 0;
-            	int is_redir[3] = {0, 0, 0};
+            	// int is_redir[3] = {0, 0, 0};
             	int fd_redir[3] = {0, 1, 2};
 
                 /* Print prompt */
@@ -98,51 +105,79 @@ int main(void)
                                 args[arg_iter++] = cmd + input_iter + 1;
 
                         }
-                        else if(cmd[input_iter] == '>') //output redirect
+                        else if(cmd[input_iter] == '>' || cmd[input_iter] == '<') //file redirect
                         {
-                                //if(cmd[input_iter-1] == '2'); //std error
+                                if(arg_iter <= 1) 
+                                {
+                                        fprintf(stderr, "Error: missing command\n");
+                                        break;
+                                }
+                                int redir_type;
+                                if(cmd[input_iter] == '<') redir_type = 0;
+                                else if(cmd[input_iter-1] != '2') redir_type = 1;
+                                else //stderr
+                                {
+                                        redir_type = 2;
+                                        cmd[input_iter-1] = '\0';
+                                }
+                                int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
+                                int file_mode = redir_type ? 0644 : 0444;
+
                                 cmd[input_iter] = '\0';
                                 input_iter++;
                                 while(cmd[input_iter] == ' ') input_iter++;
+                                if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
+                                {
+                                        fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
+                                        break;
+                                }
                                 char* filename = cmd + input_iter;
                                 while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
                                 if(cmd[input_iter] == ' ')
                                 {
                                         cmd[input_iter] = '\0';
-                                        fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                                        if(fd_redir[1]) is_redir[1] = 1;
+                                        fd_redir[redir_type] = open(filename, file_flags, file_mode);
+                                        if(fd_redir[redir_type]<0) 
+                                        {
+                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+                                                break;
+                                        }
                                         args[arg_iter-1] = cmd + input_iter;
                                 }
                                 else if(cmd[input_iter] == '\0')
                                 {
-                                        fd_redir[1] = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                                        if(fd_redir[1]) is_redir[1] = 1;
+                                        fd_redir[redir_type] = open(filename, file_flags, file_mode);
+                                        if(fd_redir[redir_type]<0) 
+                                        {
+                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+                                                break;
+                                        }
                                         args[arg_iter-1] = NULL;
                                         break;
                                 }
                         }
-			else if(cmd[input_iter] == '<') //input redirect
-			{
-				cmd[input_iter] = '\0';
-				input_iter++;
-				while(cmd[input_iter] == ' ') input_iter++;
-				char* filename = cmd + input_iter;
-				while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-				if(cmd[input_iter] == ' ')
-				{
-					cmd[input_iter] = '\0';
-					fd_redir[0] = open(filename, O_RDONLY, 0444);
-					if(fd_redir[0]) is_redir[0] = 1; 
-					args[arg_iter-1] = cmd + input_iter;
-				}
-				else if(cmd[input_iter] == '\0')
-				{
-					fd_redir[0] = open(filename, O_RDONLY, 0444);
-					if(fd_redir[0]) is_redir[0] = 1;
-					args[arg_iter-1] = NULL;
-					break;
-				}
-			}
+			// else if(cmd[input_iter] == '<') //input redirect
+			// {
+			// 	cmd[input_iter] = '\0';
+			// 	input_iter++;
+			// 	while(cmd[input_iter] == ' ') input_iter++;
+			// 	char* filename = cmd + input_iter;
+			// 	while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
+			// 	if(cmd[input_iter] == ' ')
+			// 	{
+			// 		cmd[input_iter] = '\0';
+			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
+			// 		if(fd_redir[0]) is_redir[0] = 1; 
+			// 		args[arg_iter-1] = cmd + input_iter;
+			// 	}
+			// 	else if(cmd[input_iter] == '\0')
+			// 	{
+			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
+			// 		if(fd_redir[0]) is_redir[0] = 1;
+			// 		args[arg_iter-1] = NULL;
+			// 		break;
+			// 	}
+			// }
                         else if(cmd[input_iter] == '\0')
                         {
                                 args[arg_iter] = NULL;
@@ -157,7 +192,8 @@ int main(void)
                 }*/
 
                 /* Builtin command */
-                if(!strcmp(cmd, "exit")) {
+                if(!strcmp(cmd, "exit")) 
+                {
                         fprintf(stderr, "Bye...\n");
                         break;
                 }
@@ -171,7 +207,7 @@ int main(void)
 			}
             		else
             		{
-            			dprintf(fd_redir[1],"%s\n", cwd);
+            		        dprintf((fd_redir[1]>0 ? fd_redir[1] : 1),"%s\n", cwd);
             			retval = 0;
             		}
 			free(cwd);
@@ -217,7 +253,7 @@ int main(void)
               		{
             			int i;
             			for(i = 0; i < 3; i++)
-            				if(is_redir[i])
+            				if(fd_redir[i]>2)
             					dup2(fd_redir[i], i);
                         	execvp(args[0], args);
             			exit(1);
