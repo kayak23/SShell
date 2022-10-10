@@ -10,7 +10,7 @@
 #define PATH_MAX 4096
 #define MAX_PIPE 4
 
-struct command
+struct Command
 {
         char *args[MAX_ARGS+1];
         int fd_redir[3];
@@ -55,6 +55,94 @@ void stack_print(struct Stack *st)
 	}
 }
 
+int parse_cmd(char* cmd, char** args, int* fd_redir)
+{
+        args[0] = cmd;
+        int arg_iter = 1;
+        for( ; input_iter < CMDLINE_MAX; input_iter++)
+        {
+                if(cmd[input_iter] == ' ') //current arguement is complete
+                {
+                        cmd[input_iter] = '\0';
+                        while(cmd[input_iter+1] == ' ') input_iter++; //check for extra spaces
+                        if(cmd[input_iter+1] == '\0')
+                        {
+                                args[arg_iter] = NULL;
+                                return 0;
+                        }
+                        if(arg_iter > MAX_ARGS) 
+                        {
+                                fprintf(stderr, "Error: too many process arguments\n");
+                                return -1;
+                        }
+                        args[arg_iter++] = cmd + input_iter + 1;
+
+                }
+                else if(cmd[input_iter] == '>' || cmd[input_iter] == '<') //file redirect
+                {
+                        if(arg_iter <= 1) 
+                        {
+                                fprintf(stderr, "Error: missing command\n");
+                                return -1;
+                        }
+                        else if(cmd[input_iter-1] != ' ' && cmd[input_iter-1] != '\0') 
+                        {
+                                //this catches the case where there was no space before this
+                                arg_iter++;
+                                cmd[input_iter] = '\0';
+                        }
+
+                        int redir_type;
+                        if(cmd[input_iter] == '<') redir_type = 0;
+                        else if(cmd[input_iter-1] != '2') redir_type = 1;
+                        else //stderr
+                        {
+                                redir_type = 2;
+                                cmd[input_iter-1] = '\0';
+                        }
+                        int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
+                        int file_mode = redir_type ? 0644 : 0444;
+
+                        input_iter++;
+                        while(cmd[input_iter] == ' ') input_iter++;
+                        if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
+                        {
+                                fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
+                                return -1;
+                        }
+                        char* filename = cmd + input_iter;
+                        while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
+                        if(cmd[input_iter] == ' ')
+                        {
+                                cmd[input_iter] = '\0';
+                                fd_redir[redir_type] = open(filename, file_flags, file_mode);
+                                if(fd_redir[redir_type]<0) 
+                                {
+                                        fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+                                        return -1;
+                                }
+                                args[arg_iter-1] = cmd + input_iter;
+                        }
+                        else if(cmd[input_iter] == '\0')
+                        {
+                                fd_redir[redir_type] = open(filename, file_flags, file_mode);
+                                if(fd_redir[redir_type]<0) 
+                                {
+                                        fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+                                        return -1;
+                                }
+                                args[arg_iter-1] = NULL;
+                                return 0;
+                        }
+                }
+                else if(cmd[input_iter] == '\0')
+                {
+                        args[arg_iter] = NULL;
+                        return 0;
+                }
+        }
+}
+
 int main(void)
 {
         char cmd[CMDLINE_MAX];
@@ -89,101 +177,11 @@ int main(void)
                         *nl = '\0';
 		strcpy(dudcmd, cmd);
 
-                args[0] = cmd;
-                int arg_iter = 1;
-                for( ; input_iter < CMDLINE_MAX; input_iter++)
-                {
-                        if(cmd[input_iter] == ' ') //current arguement is complete
-                        {
-                                cmd[input_iter] = '\0';
-                                while(cmd[input_iter+1] == ' ') input_iter++; //check for extra spaces
-                                if(cmd[input_iter+1] == '\0')
-                                {
-                                        args[arg_iter] = NULL;
-                                        break;
-                                }
-                                args[arg_iter++] = cmd + input_iter + 1;
+                /* parse */
 
-                        }
-                        else if(cmd[input_iter] == '>' || cmd[input_iter] == '<') //file redirect
-                        {
-                                if(arg_iter <= 1) 
-                                {
-                                        fprintf(stderr, "Error: missing command\n");
-                                        break;
-                                }
-                                int redir_type;
-                                if(cmd[input_iter] == '<') redir_type = 0;
-                                else if(cmd[input_iter-1] != '2') redir_type = 1;
-                                else //stderr
-                                {
-                                        redir_type = 2;
-                                        cmd[input_iter-1] = '\0';
-                                }
-                                int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
-                                int file_mode = redir_type ? 0644 : 0444;
-
-                                cmd[input_iter] = '\0';
-                                input_iter++;
-                                while(cmd[input_iter] == ' ') input_iter++;
-                                if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
-                                {
-                                        fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
-                                        break;
-                                }
-                                char* filename = cmd + input_iter;
-                                while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-                                if(cmd[input_iter] == ' ')
-                                {
-                                        cmd[input_iter] = '\0';
-                                        fd_redir[redir_type] = open(filename, file_flags, file_mode);
-                                        if(fd_redir[redir_type]<0) 
-                                        {
-                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
-                                                break;
-                                        }
-                                        args[arg_iter-1] = cmd + input_iter;
-                                }
-                                else if(cmd[input_iter] == '\0')
-                                {
-                                        fd_redir[redir_type] = open(filename, file_flags, file_mode);
-                                        if(fd_redir[redir_type]<0) 
-                                        {
-                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
-                                                break;
-                                        }
-                                        args[arg_iter-1] = NULL;
-                                        break;
-                                }
-                        }
-			// else if(cmd[input_iter] == '<') //input redirect
-			// {
-			// 	cmd[input_iter] = '\0';
-			// 	input_iter++;
-			// 	while(cmd[input_iter] == ' ') input_iter++;
-			// 	char* filename = cmd + input_iter;
-			// 	while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-			// 	if(cmd[input_iter] == ' ')
-			// 	{
-			// 		cmd[input_iter] = '\0';
-			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
-			// 		if(fd_redir[0]) is_redir[0] = 1; 
-			// 		args[arg_iter-1] = cmd + input_iter;
-			// 	}
-			// 	else if(cmd[input_iter] == '\0')
-			// 	{
-			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
-			// 		if(fd_redir[0]) is_redir[0] = 1;
-			// 		args[arg_iter-1] = NULL;
-			// 		break;
-			// 	}
-			// }
-                        else if(cmd[input_iter] == '\0')
-                        {
-                                args[arg_iter] = NULL;
-                                break;
-                        }
-                }
+                int parse_result = parse_cmd(cmd, args, fd_redir);
+                if(parse_result == -1) continue;
+                //else if(parse_result != 0); //pipe
 
                 /*int i = 0;
                 while(args[i] != NULL)
@@ -259,7 +257,7 @@ int main(void)
             			exit(1);
                 	}
             	}
-                fprintf(stdout, "Return status value for '%s': %d\n", dudcmd, retval);
+                fprintf(stderr, "Return status value for '%s': %d\n", dudcmd, retval);
         }
 
         return EXIT_SUCCESS;
