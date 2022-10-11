@@ -274,10 +274,10 @@ int main(void)
 				int status;
 				//fprintf(stderr, "Waiting on PID %d\n", pid[i]);
 				waitpid(pid[i], &status, 0);
-				if(tasks[i].fd_redir[1] != STDOUT_FILENO)
-					close(tasks[i].fd_redir[1]);
-				if(tasks[i].fd_redir[0] != STDIN_FILENO)
-					close(tasks[i].fd_redir[0]);
+				//if(tasks[i].fd_redir[1] != STDOUT_FILENO)
+				//	close(tasks[i].fd_redir[1]);
+				//if(tasks[i].fd_redir[0] != STDIN_FILENO)
+				//	close(tasks[i].fd_redir[0]);
 				if(WIFEXITED(status))
 				{
 					retvals[i] = WEXITSTATUS(status);
