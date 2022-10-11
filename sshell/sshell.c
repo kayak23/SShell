@@ -249,56 +249,43 @@ int main(void)
                 }*/
 		if(task_iter >= 1) //piping present
 		{
-			//fprintf(stderr, "Pipes!\n");
-			/*
-			for(j = 0; j < task_iter + 1; j++)
-			{
-				fprintf(stderr, "%s ", tasks[j].args[0]);
-				int i = 0;
-				while(tasks[j].args[i] != NULL)
-				{
-					fprintf(stderr, "Arg %d: '%s' ", i, tasks[j].args[i]);
-					i++;
-				}
-				fprintf(stderr, "\n");
-			}*/
+			int i;
 			int retvals[task_iter+1];
-			int num_complete = 0;
-			for(j = 0; j < task_iter + 1; j++)
+			int pid[task_iter+1];
+			for(i = 0; i < task_iter + 1; i++)
 			{
-				int pid = fork();
-				if(pid > 0)
+				if((pid[i] = fork()) == 0)
 				{
-					int status;
-					//fprintf(stderr, "Waiting on J == %d\n", j);
-					//int pid2 = fork();
-					/*if(pid2 > 0)
-						continue;
-					else*/
-					waitpid(pid, &status, 0);
-					if(j != task_iter)
-						close(tasks[j].fd_redir[1]);
-					//fprintf(stderr, "Finished J == %d\n, STDIN: %d, STDOUT: %d, STDERR: %d", j, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO);
-					num_complete++;
-					if(WIFEXITED(status))
-						retvals[j] = WEXITSTATUS(status);
-					if(retvals[j])
-						break;
-				}	
-				else if(pid == 0)
-				{
-					int i;
-					for(i = 0; i < 3; i++)
-						if(tasks[j].fd_redir[i] > 2)
-							dup2(tasks[j].fd_redir[i], i);
-					execvp(tasks[j].args[0], tasks[j].args);
+					int j;
+					for(j = 0; j < 3; j++)
+						if(tasks[i].fd_redir[j] > 2)
+							dup2(tasks[i].fd_redir[j], j);
+					execvp(tasks[i].args[0], tasks[i].args);
 					fprintf(stderr, "Error: command not found\n");
 					exit(1);
 				}
+				if(tasks[i].fd_redir[0] != 0)
+					close(tasks[i].fd_redir[0]);
+				if(tasks[i].fd_redir[1] != 1)
+					close(tasks[i].fd_redir[1]);
+			}
+			for(i = 0; i < task_iter + 1; i++)
+			{
+				int status;
+				//fprintf(stderr, "Waiting on PID %d\n", pid[i]);
+				waitpid(pid[i], &status, 0);
+				if(tasks[i].fd_redir[1] != STDOUT_FILENO)
+					close(tasks[i].fd_redir[1]);
+				if(tasks[i].fd_redir[0] != STDIN_FILENO)
+					close(tasks[i].fd_redir[0]);
+				if(WIFEXITED(status))
+				{
+					retvals[i] = WEXITSTATUS(status);
+				//	fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
+				}
 			}
 			fprintf(stderr, "+ completed '%s' ", dudcmd);
-			int i;
-			for(i = 0; i < num_complete; i++) fprintf(stderr, "[%d]", retvals[i]);
+			for(i = 0; i < task_iter+1; i++) fprintf(stderr, "[%d]", retvals[i]);
 			fprintf(stderr, "\n");
 			continue;
 		}
