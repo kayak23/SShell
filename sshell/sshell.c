@@ -13,8 +13,8 @@
 
 struct Command
 {
-        char *args[MAX_ARGS+1];
-        int fd_redir[3];
+	char *args[MAX_ARGS+1];
+	int fd_redir[3];
 };
 
 struct Stack 
@@ -58,45 +58,45 @@ void stack_print(struct Stack *st)
 
 int main(void)
 {
-        char cmd[CMDLINE_MAX];
+	char cmd[CMDLINE_MAX];
 	char dudcmd[CMDLINE_MAX];
 	struct Stack dir_st = {0, 2, malloc(2*sizeof(char*))};
 
-        while(1) 
+	while(1) 
 	{
-                char *nl;
-                int retval;
+		char *nl;
+		int retval;
 		struct Command *tasks;
 
-                /* Print prompt */
-                printf("sshell@ucd$ ");
-                fflush(stdout);
+		/* Print prompt */
+		printf("sshell@ucd$ ");
+		fflush(stdout);
 
-                /* Get command line */
-                fgets(cmd, CMDLINE_MAX, stdin);
-                /* Print command line if stdin is not provided by terminal */
-                if(!isatty(STDIN_FILENO))
-                {
-                        printf("%s", cmd);
-                        fflush(stdout);
-                }
+		/* Get command line */
+		fgets(cmd, CMDLINE_MAX, stdin);
+		/* Print command line if stdin is not provided by terminal */
+		if(!isatty(STDIN_FILENO))
+		{
+			printf("%s", cmd);
+			fflush(stdout);
+		}
 
-                /* Remove trailing newline from command line */
-                nl = strchr(cmd, '\n');
-                if(nl)
-                        *nl = '\0';
+		/* Remove trailing newline from command line */
+		nl = strchr(cmd, '\n');
+		if(nl)
+			*nl = '\0';
 		strcpy(dudcmd, cmd);
 
 		int j;
-                int arg_iter = 1;
+		int arg_iter = 1;
 		int task_iter = 0;
 		int input_iter = 0;
 		int parse_error = 0;
 		tasks = malloc(sizeof(struct Command));
 		tasks[0].args[0] = cmd;
 		for(j = 0; j < 3; j++) tasks[0].fd_redir[j] = j;
-                for( ; input_iter < CMDLINE_MAX; input_iter++)
-                {
+		for( ; input_iter < CMDLINE_MAX; input_iter++)
+		{
 			if(arg_iter >= 16)
 			{
 				fprintf(stderr, "Error: too many process arguments\n");
@@ -104,83 +104,83 @@ int main(void)
 				break;
 			}
 			else if(cmd[input_iter] == ' ') //current arguement is complete
-                        {
-                                cmd[input_iter] = '\0';
-                                while(cmd[input_iter+1] == ' ') input_iter++; //check for extra spaces
-                                if(cmd[input_iter+1] == '\0')
-                                {
-                                        tasks[task_iter].args[arg_iter] = NULL;
-                                        break;
-                                }
-                                tasks[task_iter].args[arg_iter++] = cmd + input_iter + 1;
-                        }
-                        else if(cmd[input_iter] == '>' || cmd[input_iter] == '<') //file redirect
-                        {
-                                if(arg_iter <= 1) 
-                                {
-                                        fprintf(stderr, "Error: missing command\n");
+			{
+				cmd[input_iter] = '\0';
+				while(cmd[input_iter+1] == ' ') input_iter++; //check for extra spaces
+				if(cmd[input_iter+1] == '\0')
+				{
+					tasks[task_iter].args[arg_iter] = NULL;
+					break;
+				}
+				tasks[task_iter].args[arg_iter++] = cmd + input_iter + 1;
+			}
+			else if(cmd[input_iter] == '>' || cmd[input_iter] == '<') //file redirect
+			{
+				if(arg_iter <= 1) 
+				{
+					fprintf(stderr, "Error: missing command\n");
 					parse_error = TRUE;
-                                        break;
-                                }
-                                int redir_type;
-                                if(cmd[input_iter] == '<') redir_type = 0;
-                                else if(cmd[input_iter-1] != '2') redir_type = 1;
-                                else //stderr
-                                {
-                                        redir_type = 2;
-                                        cmd[input_iter-1] = '\0';
-                                }
+					break;
+				}
+				int redir_type;
+				if(cmd[input_iter] == '<') redir_type = 0;
+				else if(cmd[input_iter-1] != '2') redir_type = 1;
+				else //stderr
+				{
+					redir_type = 2;
+					cmd[input_iter-1] = '\0';
+				}
 				if(task_iter >= 1 && redir_type == 0) //compress these two error checks into a function
 				{
 					fprintf(stderr, "Error: mislocated input redirection");
 					parse_error = TRUE;
 					break;
 				}
-                                int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
-                                int file_mode = redir_type ? 0644 : 0444;
+				int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
+				int file_mode = redir_type ? 0644 : 0444;
 
-                                cmd[input_iter] = '\0';
-                                input_iter++;
-                                while(cmd[input_iter] == ' ') input_iter++;
-                                if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
-                                {
-                                        fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
+				cmd[input_iter] = '\0';
+				input_iter++;
+				while(cmd[input_iter] == ' ') input_iter++;
+				if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
+				{
+					fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
 					parse_error = TRUE;
-                                        break;
-                                }
-                                char* filename = cmd + input_iter;
-                                while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-                                if(cmd[input_iter] == ' ')
-                                {
+					break;
+				}
+				char* filename = cmd + input_iter;
+				while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
+				if(cmd[input_iter] == ' ')
+				{
 					if(task_iter >= 1 && redir_type == 1)
 					{
 						fprintf(stderr, "Error: mislocated output redirection");
 						parse_error = TRUE;
 						break;
 					}
-                                        cmd[input_iter] = '\0';
-                                        tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
-                                        if(tasks[task_iter].fd_redir[redir_type]<0) 
-                                        {
-                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+					cmd[input_iter] = '\0';
+					tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
+					if(tasks[task_iter].fd_redir[redir_type]<0) 
+					{
+						fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
 						parse_error = TRUE;
-                                                break;
-                                        }
-                                        tasks[task_iter].args[arg_iter-1] = cmd + input_iter;
-                                }
-                                else if(cmd[input_iter] == '\0')
-                                {
-                                        tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
-                                        if(tasks[task_iter].fd_redir[redir_type]<0) 
-                                        {
-                                                fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+						break;
+					}
+					tasks[task_iter].args[arg_iter-1] = cmd + input_iter;
+				}
+				else if(cmd[input_iter] == '\0')
+				{
+					tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
+					if(tasks[task_iter].fd_redir[redir_type]<0) 
+					{
+						fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
 						parse_error = TRUE;
-                                                break;
-                                        }
-                                        tasks[task_iter].args[arg_iter-1] = NULL;
-                                        break;
-                                }
-                        }
+						break;
+					}
+					tasks[task_iter].args[arg_iter-1] = NULL;
+					break;
+				}
+			}
 			else if(cmd[input_iter] == '|') //piping
 			{
 				/* Error catching */
@@ -235,18 +235,18 @@ int main(void)
 			// 		break;
 			// 	}
 			// }
-                        else if(cmd[input_iter] == '\0')
-                        {
-                                tasks[task_iter].args[arg_iter] = NULL;
-                                break;
-                        }
-                }
+			else if(cmd[input_iter] == '\0')
+			{
+				tasks[task_iter].args[arg_iter] = NULL;
+				break;
+			}
+		}
 		if(parse_error) continue;
-                /*int i = 0;
-                while(args[i] != NULL)
-                {
-                        printf("%d: %s\n", i, args[i++]);
-                }*/
+		/*int i = 0;
+		while(args[i] != NULL)
+		{
+			printf("%d: %s\n", i, args[i++]);
+		}*/
 		if(task_iter >= 1) //piping present
 		{
 			int i;
@@ -259,7 +259,21 @@ int main(void)
 					int j;
 					for(j = 0; j < 3; j++)
 						if(tasks[i].fd_redir[j] > 2)
+						{
 							dup2(tasks[i].fd_redir[j], j);
+							close(tasks[i].fd_redir[j]);
+						}
+					int k;
+					for(j = 0; j < task_iter + 1; j++)
+					{
+						for(k = 0; k < 3; k++)
+						{
+							if(tasks[j].fd_redir[k] == STDIN_FILENO || tasks[j].fd_redir[k] == STDOUT_FILENO)
+								continue;
+							else
+								close(tasks[j].fd_redir[k]);
+						}
+					}
 					execvp(tasks[i].args[0], tasks[i].args);
 					fprintf(stderr, "Error: command not found\n");
 					exit(1);
@@ -269,18 +283,26 @@ int main(void)
 				if(tasks[i].fd_redir[1] != 1)
 					close(tasks[i].fd_redir[1]);
 			}
+			
 			for(i = 0; i < task_iter + 1; i++)
 			{
 				int status;
 				//fprintf(stderr, "Waiting on PID %d\n", pid[i]);
-				waitpid(pid[i], &status, 0);
+				int term_PID = wait(&status);
 				//if(tasks[i].fd_redir[1] != STDOUT_FILENO)
 				//	close(tasks[i].fd_redir[1]);
 				//if(tasks[i].fd_redir[0] != STDIN_FILENO)
 				//	close(tasks[i].fd_redir[0]);
 				if(WIFEXITED(status))
 				{
-					retvals[i] = WEXITSTATUS(status);
+					for(j = 0; j < task_iter + 1; j++)
+					{
+						if(term_PID == pid[j])
+						{
+							retvals[j] = WEXITSTATUS(status);
+							fprintf(stderr, "collected pipe process %d PID:%d retval:%d\n", j, pid[j], retvals[j]);
+						}
+					}
 				//	fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
 				}
 			}
@@ -291,7 +313,7 @@ int main(void)
 		}
 		else
 		{
-                	/* Builtin command */
+			/* Builtin command */
 			if(!strcmp(cmd, "exit")) 
 			{
 				fprintf(stderr, "Bye...\n");
@@ -370,7 +392,7 @@ int main(void)
 			}
 			fprintf(stdout, "Return status value for '%s': %d\n", dudcmd, retval);
 		}
-        }
+	}
 
-        return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
