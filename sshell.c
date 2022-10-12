@@ -251,30 +251,28 @@ int main(void)
 					fprintf(stderr, "Error: command not found\n");
 					exit(1);
 				}
-				
+				//close files in parent
 				if(tasks[i].fd_redir[0] != 0)
 					close(tasks[i].fd_redir[0]);
 				if(tasks[i].fd_redir[1] != 1)
 					close(tasks[i].fd_redir[1]);
 				
 			}
-			for(i = 0; i < task_iter + 1; i++)
+			i = 0;
+			while(i < task_iter + 1)
 			{
 				int status;
 				if(waitpid(pid[i], &status, WUNTRACED | WNOHANG))
 				{
 					if(WIFEXITED(status))
-						retvals[i] = WEXITSTATUS(status);
+						retvals[i++] = WEXITSTATUS(status);
 					else if(WIFSIGNALED(status))
-						retvals[i] = (WTERMSIG(status) == SIGPIPE) ? 0 : WTERMSIG(status);
-					else
-						i--;
+						retvals[i++] = (WTERMSIG(status) == SIGPIPE) ? 0 : WTERMSIG(status);
 				}
-				else
-					i--;
 			}
 			fprintf(stderr, "+ completed '%s' ", dudcmd);
-			for(i = 0; i < task_iter+1; i++) fprintf(stderr, "[%d]", retvals[i]);
+			for(i = 0; i < task_iter+1; i++) 
+				fprintf(stderr, "[%d]", retvals[i]);
 			fprintf(stderr, "\n");
 			free(tasks);
 			continue;
