@@ -11,6 +11,7 @@
 #define MAX_PIPE 4
 #define TRUE 1
 
+// Data Structures
 struct Command
 {
 	char *args[MAX_ARGS+1];
@@ -24,6 +25,7 @@ struct Stack
 	char **stack;
 };
 
+// Functions for pushd, popd, and dirs
 void stack_resize(struct Stack *st)
 {
 	st->size_max *= 2;
@@ -87,6 +89,7 @@ int main(void)
 			*nl = '\0';
 		strcpy(dudcmd, cmd);
 
+		// Parse
 		int j;
 		int arg_iter = 1;
 		int task_iter = 0;
@@ -213,28 +216,6 @@ int main(void)
 				tasks[task_iter].args[0] = cmd + input_iter;
 				arg_iter = 1;
 			}
-			// else if(cmd[input_iter] == '<') //input redirect
-			// {
-			// 	cmd[input_iter] = '\0';
-			// 	input_iter++;
-			// 	while(cmd[input_iter] == ' ') input_iter++;
-			// 	char* filename = cmd + input_iter;
-			// 	while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-			// 	if(cmd[input_iter] == ' ')
-			// 	{
-			// 		cmd[input_iter] = '\0';
-			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
-			// 		if(fd_redir[0]) is_redir[0] = 1; 
-			// 		args[arg_iter-1] = cmd + input_iter;
-			// 	}
-			// 	else if(cmd[input_iter] == '\0')
-			// 	{
-			// 		fd_redir[0] = open(filename, O_RDONLY, 0444);
-			// 		if(fd_redir[0]) is_redir[0] = 1;
-			// 		args[arg_iter-1] = NULL;
-			// 		break;
-			// 	}
-			// }
 			else if(cmd[input_iter] == '\0')
 			{
 				tasks[task_iter].args[arg_iter] = NULL;
@@ -242,11 +223,8 @@ int main(void)
 			}
 		}
 		if(parse_error) continue;
-		/*int i = 0;
-		while(args[i] != NULL)
-		{
-			printf("%d: %s\n", i, args[i++]);
-		}*/
+		
+		//Execute
 		if(task_iter >= 1) //piping present
 		{
 			int i;
@@ -256,59 +234,63 @@ int main(void)
 			{
 				if((pid[i] = fork()) == 0)
 				{
+					//Setup redirects
 					int j;
-					for(j = 0; j < 3; j++)
+					for(j = 0; j < 3; j++) 
 						if(tasks[i].fd_redir[j] > 2)
-						{
 							dup2(tasks[i].fd_redir[j], j);
-							close(tasks[i].fd_redir[j]);
-						}
+
+					//Close all other files
 					int k;
 					for(j = 0; j < task_iter + 1; j++)
-					{
 						for(k = 0; k < 3; k++)
-						{
-							if(tasks[j].fd_redir[k] == STDIN_FILENO || tasks[j].fd_redir[k] == STDOUT_FILENO)
-								continue;
-							else
+							if(tasks[j].fd_redir[k] != k)
 								close(tasks[j].fd_redir[k]);
-						}
-					}
+
 					execvp(tasks[i].args[0], tasks[i].args);
 					fprintf(stderr, "Error: command not found\n");
 					exit(1);
 				}
+				
 				if(tasks[i].fd_redir[0] != 0)
 					close(tasks[i].fd_redir[0]);
 				if(tasks[i].fd_redir[1] != 1)
 					close(tasks[i].fd_redir[1]);
+				
 			}
-			
-			for(i = 0; i < task_iter + 1; i++)
+			int completed = 0;
+			int status;
+			while(completed <= task_iter)
 			{
-				int status;
-				//fprintf(stderr, "Waiting on PID %d\n", pid[i]);
-				int term_PID = wait(&status);
-				//if(tasks[i].fd_redir[1] != STDOUT_FILENO)
-				//	close(tasks[i].fd_redir[1]);
-				//if(tasks[i].fd_redir[0] != STDIN_FILENO)
-				//	close(tasks[i].fd_redir[0]);
-				if(WIFEXITED(status))
+				for(i = 0; i < task_iter + 1; i++)
 				{
-					for(j = 0; j < task_iter + 1; j++)
+					// fprintf(stderr, "Waiting on PID %d\n", pid[i]);
+					if(pid[i] != -1 && waitpid(pid[i], &status, WUNTRACED | WNOHANG))
 					{
-						if(term_PID == pid[j])
+						// fprintf(stderr, "PID %d status: %d\n", pid[i], WEXITSTATUS(status));
+						if(WIFEXITED(status))
 						{
-							retvals[j] = WEXITSTATUS(status);
-							fprintf(stderr, "collected pipe process %d PID:%d retval:%d\n", j, pid[j], retvals[j]);
+							retvals[i] = WEXITSTATUS(status);
+							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
+							completed++;
+							pid[i] = -1;
 						}
+						else if(WIFSIGNALED(status))
+						{
+							retvals[i] = (WTERMSIG(status) == 13) ? 0 : WTERMSIG(status);
+							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
+							completed++;
+							pid[i] = -1;
+						}
+						// else if(WIFSTOPPED(status))
+						// 	fprintf(stderr, "Process %d is stopped\n", pid[i]);
 					}
-				//	fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
 				}
 			}
 			fprintf(stderr, "+ completed '%s' ", dudcmd);
 			for(i = 0; i < task_iter+1; i++) fprintf(stderr, "[%d]", retvals[i]);
 			fprintf(stderr, "\n");
+			free(tasks);
 			continue;
 		}
 		else
@@ -340,7 +322,7 @@ int main(void)
 				if(retval)
 					fprintf(stderr, "Error: cannot cd into directory\n");
 			}
-			else if(!strcmp(tasks[0].args[0], "pushd")) // DOES NOT CHECK FOR ERRORS (same goes for all three stack commands)
+			else if(!strcmp(tasks[0].args[0], "pushd"))
 			{
 				char *cwd = getcwd(NULL, 0);
 				retval = abs(chdir(tasks[0].args[1]));
@@ -367,9 +349,9 @@ int main(void)
 				stack_print(&dir_st);
 				retval = 0;
 			}
+			/* Regular command */
 			else
 			{
-				/* Regular command */
 				int pid = fork();
 				//printf("PID: %d\n", pid);
 				if(pid > 0)
