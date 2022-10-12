@@ -296,34 +296,28 @@ int main(void)
 				for(i = 0; i < task_iter + 1; i++)
 				{
 					
-					fprintf(stderr, "Waiting on PID %d\n", pid[i]);
-					if(waitpid(pid[i], &status, WUNTRACED | WNOHANG))
+					// fprintf(stderr, "Waiting on PID %d\n", pid[i]);
+					if(pid[i] != -1 && waitpid(pid[i], &status, WUNTRACED | WNOHANG))
 					{
-						fprintf(stderr, "PID %d status: %d\n", pid[i], WEXITSTATUS(status));
-						//if(tasks[i].fd_redir[1] != STDOUT_FILENO)
-						/*if(i != task_iter)
-							close(tasks[i].fd_redir[1]);
-						//if(tasks[i].fd_redir[0] != STDIN_FILENO)
-						if(i != 0 || close(tasks[i].fd_redir[0] != STDIN_FILENO))
-							close(tasks[i].fd_redir[0]);
-						retvals[i] = WEXITSTATUS(status);*/
+						// fprintf(stderr, "PID %d status: %d\n", pid[i], WEXITSTATUS(status));
 						if(WIFEXITED(status))
 						{
-							// if(i != task_iter)
-							// 	close(tasks[i].fd_redir[1]);
-							// if(i != 0)
-							// 	close(tasks[i].fd_redir[0]);
 							retvals[i] = WEXITSTATUS(status);
-							fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
-							// if(retvals[i] >= 128) //signal termination
-							// 	retvals[i] = 0;
+							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
 							completed++;
+							pid[i] = -1;
 						}
-						else if(WIFSTOPPED(status))
-							fprintf(stderr, "Process %d is stopped\n", pid[i]);
+						else if(WIFSIGNALED(status))
+						{
+							retvals[i] = (WTERMSIG(status) == 13) ? 0 : WTERMSIG(status);
+							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
+							completed++;
+							pid[i] = -1;
+						}
+						// else if(WIFSTOPPED(status))
+						// 	fprintf(stderr, "Process %d is stopped\n", pid[i]);
 					}
 				}
-				sleep(1);
 			}
 			fprintf(stderr, "+ completed '%s' ", dudcmd);
 			for(i = 0; i < task_iter+1; i++) fprintf(stderr, "[%d]", retvals[i]);
