@@ -30,8 +30,8 @@ respective arguments, creates all necessary file descriptors for input and
 output redirection and piping, and then loads each program into a data structure
 called "struct Command" (henceforth referred to as a 'Command Structure').
 Command Structures have two main components:
-* A statically allocated character array with sufficient size for the maximum
-number of arguments of an individual program.
+* A statically allocated string (character pointer) array with sufficient size for 
+the maximum number of arguments of an individual program.
 * A statically allocated integer array of size three to store the input, output,
 and error file descriptors for the program.
 In the case of a pipeline of commands, our program generates a dynamically
