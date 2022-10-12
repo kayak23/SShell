@@ -49,13 +49,13 @@ void stack_pop(struct Stack *st, char **str)
 void stack_print(struct Stack *st)
 {
 	int i;
-	char cwd[PATH_MAX];
-	getcwd(cwd, sizeof(cwd));
+	char *cwd = getcwd(NULL, 0);
 	printf("%s\n", cwd);
 	for(i = st->size - 1; i >= 0; i--)
 	{
 		printf("%s\n", st->stack[i]);
 	}
+	free(cwd);
 }
 
 int main(void)
@@ -258,34 +258,20 @@ int main(void)
 					close(tasks[i].fd_redir[1]);
 				
 			}
-			int completed = 0;
-			int status;
-			while(completed <= task_iter)
+			for(i = 0; i < task_iter + 1; i++)
 			{
-				for(i = 0; i < task_iter + 1; i++)
+				int status;
+				if(waitpid(pid[i], &status, WUNTRACED | WNOHANG))
 				{
-					// fprintf(stderr, "Waiting on PID %d\n", pid[i]);
-					if(pid[i] != -1 && waitpid(pid[i], &status, WUNTRACED | WNOHANG))
-					{
-						// fprintf(stderr, "PID %d status: %d\n", pid[i], WEXITSTATUS(status));
-						if(WIFEXITED(status))
-						{
-							retvals[i] = WEXITSTATUS(status);
-							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
-							completed++;
-							pid[i] = -1;
-						}
-						else if(WIFSIGNALED(status))
-						{
-							retvals[i] = (WTERMSIG(status) == 13) ? 0 : WTERMSIG(status);
-							//fprintf(stderr, "PID %d exited with code %d\n", pid[i], retvals[i]);
-							completed++;
-							pid[i] = -1;
-						}
-						// else if(WIFSTOPPED(status))
-						// 	fprintf(stderr, "Process %d is stopped\n", pid[i]);
-					}
+					if(WIFEXITED(status))
+						retvals[i] = WEXITSTATUS(status);
+					else if(WIFSIGNALED(status))
+						retvals[i] = (WTERMSIG(status) == SIGPIPE) ? 0 : WTERMSIG(status);
+					else
+						i--;
 				}
+				else
+					i--;
 			}
 			fprintf(stderr, "+ completed '%s' ", dudcmd);
 			for(i = 0; i < task_iter+1; i++) fprintf(stderr, "[%d]", retvals[i]);
@@ -295,10 +281,10 @@ int main(void)
 		}
 		else
 		{
-			/* Builtin command */
+			/* Builtin commands */
 			if(!strcmp(cmd, "exit")) 
 			{
-				fprintf(stderr, "Bye...\n");
+				fprintf(stderr, "Bye...\n+ completed 'exit' [0]\n");
 				break;
 			}
 			else if(!strcmp(tasks[0].args[0], "pwd"))
@@ -353,7 +339,6 @@ int main(void)
 			else
 			{
 				int pid = fork();
-				//printf("PID: %d\n", pid);
 				if(pid > 0)
 				{
 					int status;
@@ -372,7 +357,7 @@ int main(void)
 					exit(1);
 				}
 			}
-			fprintf(stdout, "Return status value for '%s': %d\n", dudcmd, retval);
+			fprintf(stderr, "+ completed '%s' [%d]\n", dudcmd, retval);
 		}
 	}
 
