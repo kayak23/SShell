@@ -4,10 +4,10 @@
 ## Overview
 The program SSHELL provides the basic functionality of a Shell: a service that
 interprets input from the user in the form of command-line arguments and
-executes them. Additionally, this program provides a variety of essential
-built-in commands for managing the user's working environment, supports the use
-of common meta-characters for managing input and output redirection, and
-maintains a stable runtime environment by properly handling errors.
+executes them. Additionally, SSHELL provides a variety of essential built-in
+commands for managing the user's working environment, supports the use of
+common meta-characters for managing input and output redirection, and maintains
+a stable runtime environment by properly handling errors.
 
 ### Architecture
 The implementation of SSHELL adheres to this general architecture:
@@ -112,7 +112,19 @@ stack.
 
 ### Notes on the Directory Stack
 To implement the directory stack, SSHELL includes a data structure called
-"struct Stack" (henceforth referred to as a 'Stack')
+"struct Stack" (henceforth referred to as a 'Stack') to manage the storing of
+directories. A Stack has the following data members:
+* An integer value for the size of the stack (called 'size')
+* An integer value for the maximum size of the stack (called 'size_max')
+* A double character pointer to store the directories as strings (called
+'stack')
+The Stack is also supported by four "member functions":
+1. stack_resize(): doubles the maximum size of the stack if the current 'size'
+is greater than or equal to the 'size_max'.
+2. stack_push(): pushes a new string into the stack (dynamically allocates
+enough space for the string in the 'stack' data member)
+3. stack_pop(): pops the top element of the stack
+4. stack_print(): prints the elements of the stack from top to bottom
 
 ## Error Catching
 
@@ -127,8 +139,8 @@ input syntax. There are six possibilities for illegal syntax:
 pipeline.
 6. An output redirection meta-character has been improperly placed in a
 pipeline.
-To handle these syntax discrepancies 1), 2), and 5), our program maintains an
-integer value representing the total number of arguments for the current
+To handle syntax discrepancies 1), 2), and 5), our program maintains an integer
+value representing the total number of arguments for the current
 program and an integer value representing the total number of Command Structures
 created from the user input (henceforth referred to as 'arg_iter' and
 'task_iter', respectively, and initialized to one and zero, respectively).
