@@ -26,11 +26,11 @@ must be parsed by SSHELL. User input falls into two general categories:
 * The user has issued a single command (single program).
 * The user has issued a pipeline of commands (multiple programs).
 In each of these categories, SSHELL identifies the individual programs and their
-respective arguments, creates all necessary file descriptors for input and
-output redirection and piping, and then loads each program into a data structure
+respective arguments, opens all necessary files for input and output
+redirection and piping, and then loads each program into a data structure
 called "struct Command" (henceforth referred to as a 'Command Structure'). In
-the case of a pipeline, a dynamically allocated array of such Command Structures
-is used.
+the case of a pipeline, a dynamically allocated array of such Command
+Structures is used.
 
 Command Structures have two main components:
 * A statically allocated array of character pointers with sufficient size for
@@ -131,14 +131,29 @@ enough space for the string in the 'stack' data member)
 ### Parsing Errors
 During the process of parsing the command line, SSHELL also checks for illegal
 input syntax. There are six possibilities for illegal syntax:
-1. The user has entered too many process arguments.
-2. A meta-character is missing a command.
-3. An input or output redirection meta-character is missing a file.
-4. A specified file cannot be opened.
-5. An input redirection meta-character has been improperly placed in a
-pipeline.
-6. An output redirection meta-character has been improperly placed in a
-pipeline.
+1. *The user has entered too many process arguments.*
+This is detected by checking the number of arguements during every loop. The
+variable arg_iter will become too big with too many arguements. There is a
+special case to check if the extra arguements are actually redirects or pipes
+2. *The input is missing a command.*
+If a meta character or end of line is encountered and the number of arguements
+has not increased, then there is no command given as the first arguement. 
+3. *An input or output redirection meta-character is missing a file.*
+After seeing the file redirect meta character, the program iterates through
+spaces to find the start of the filename. If the first character is a meta
+character or \0, then there was no filename given.
+4. *A specified file cannot be opened.*
+This error only happens if the 'open' syscall fails and returns a negative
+value. It does not check why it failed but simply stops parsing and prompts the
+user again.
+5. *An input redirection meta-character has been improperly placed in a
+pipeline.*
+This is found if an input redirect is found and a pipe is present.
+6. *An output redirection meta-character has been improperly placed in a
+pipeline.*
+This is found if a pipe is found and an output redirect is present.
+
+### Delete this ??
 To handle syntax discrepancies 1), 2), and 5), our program maintains an integer
 value representing the total number of arguments for the current
 program and an integer value representing the total number of Command Structures
@@ -150,3 +165,17 @@ This catches all of the aforementioned potential syntax discrepancies:
 one.
 * The parser errs if an input redirection meta character was encountered when
 'task_iter' is greater than or equal to one.
+
+### Launching Errors
+There are 2 types of launching errors that SSHELL manages:
+1. built-in command fails
+2. user command fails to exec.
+Built in command errors are managed within the code of the command. They check
+for the error, print the error message, and set the appropriate return value.
+cd and pushd catch an error when 'chdir' fails and returns a bad value. popd
+errors when it checks the size of the directory stack and finds that it is
+empty.
+User commands fails to execute if the command does not exist on the system. In
+this case, the 'execvp' function will return rather than change the process.
+When that happens, the program will print the error message and then exit with
+return value 1. Since this happens in a child process, the shell is preserved

@@ -35,13 +35,13 @@ void stack_resize(struct Stack *st)
 void stack_push(struct Stack *st, char *str)
 {
 	if(st->size >= st->size_max) stack_resize(st);
-	st->stack[st->size] = malloc(strlen(str)*sizeof(char));
+	st->stack[st->size] = malloc((strlen(str)+1)*sizeof(char));
 	strcpy(st->stack[st->size++], str);
 }
 
 void stack_pop(struct Stack *st, char **str)
 {
-	*str = malloc(strlen(st->stack[--st->size])*sizeof(char)); 
+	*str = malloc((strlen(st->stack[--st->size])+1)*sizeof(char)); 
 	strcpy(*str, st->stack[st->size]);
 	free(st->stack[st->size]);
 }
@@ -66,10 +66,6 @@ int main(void)
 
 	while(1) 
 	{
-		char *nl;
-		int retval;
-		struct Command *tasks;
-
 		/* Print prompt */
 		printf("sshell@ucd$ ");
 		fflush(stdout);
@@ -84,23 +80,27 @@ int main(void)
 		}
 
 		/* Remove trailing newline from command line */
-		nl = strchr(cmd, '\n');
+		char *nl = strchr(cmd, '\n');
 		if(nl)
 			*nl = '\0';
 		strcpy(dudcmd, cmd);
 
-		// Parse
-		int j;
+		// Parse setup
 		int arg_iter = 1;
 		int task_iter = 0;
 		int input_iter = 0;
 		int parse_error = 0;
+		struct Command *tasks;
 		tasks = malloc(sizeof(struct Command));
 		tasks[0].args[0] = cmd;
-		for(j = 0; j < 3; j++) tasks[0].fd_redir[j] = j;
+		int j;
+		for(j = 0; j < 3; j++) 
+			tasks[0].fd_redir[j] = j;
+
+		//Parser
 		for( ; input_iter < CMDLINE_MAX; input_iter++)
 		{
-			if(arg_iter > MAX_ARGS)
+			if(arg_iter > MAX_ARGS && !(cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|'))
 			{
 				fprintf(stderr, "Error: too many process arguments\n");
 				parse_error = TRUE;
@@ -134,7 +134,7 @@ int main(void)
 				//cant input redirect if this in a pipe
 				if(task_iter >= 1 && redir_type == 0)
 				{
-					fprintf(stderr, "Error: mislocated input redirection");
+					fprintf(stderr, "Error: mislocated input redirection\n");
 					parse_error = TRUE;
 					break;
 				}
@@ -164,8 +164,8 @@ int main(void)
 				while(!(cmd[input_iter] == ' ' || cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')) 
 					input_iter++;
 				int line_end = (cmd[input_iter] == '\0');
-				int meta_char = !(line_end) && !(cmd[input_iter] == ' ');
-				if(meta_char) //cant terminate string so need to allocate a new one
+				int meta_char = !line_end && !(cmd[input_iter] == ' ');
+				if(meta_char) //cant terminate string since it would destroy meta character
 				{
 					int length = (cmd + input_iter) - filename;
 					char* new_filename = malloc((length+1)*sizeof(char));
@@ -173,10 +173,11 @@ int main(void)
 					new_filename[length+1] = '\0';
 					filename = new_filename;
 				}
-				else //terminate string and check for spaces
+				else if(!line_end) //terminate string and check for spaces
 				{
 					cmd[input_iter] = '\0';
 					while(cmd[input_iter+1] == ' ') input_iter++;
+					line_end = (cmd[input_iter+1] == '\0'); //may have reached the end of line
 				}
 
 				//open file
@@ -214,7 +215,7 @@ int main(void)
 				}
 				else if(tasks[task_iter].fd_redir[1] != 1) //cant pipe with output redir
 				{
-					fprintf(stderr, "Error: mislocated output redirection");
+					fprintf(stderr, "Error: mislocated output redirection\n");
 					parse_error = TRUE;
 					break;
 				}
@@ -247,9 +248,19 @@ int main(void)
 				break;
 			}
 		}
-		if(parse_error) continue;
-		
+		if(parse_error) 
+		{
+			//close all opened files
+			int i, j;
+			for(i = 0; i < task_iter + 1; i++)
+				for(j = 0; j < 3; j++)
+					if(tasks[i].fd_redir[j] > 2)
+						close(tasks[i].fd_redir[j]);
+			continue;
+		}
+
 		//Execute
+		int retval;
 		if(task_iter >= 1) //piping present
 		{
 			int i;
@@ -344,7 +355,10 @@ int main(void)
 			else if(!strcmp(tasks[0].args[0], "popd"))
 			{
 				if(!dir_st.size)
+				{
 					fprintf(stderr, "Error: directory stack empty\n");
+					retval = 1;
+				}
 				else
 				{
 					char *dir = NULL;
