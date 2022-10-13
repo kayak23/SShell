@@ -100,7 +100,7 @@ int main(void)
 		for(j = 0; j < 3; j++) tasks[0].fd_redir[j] = j;
 		for( ; input_iter < CMDLINE_MAX; input_iter++)
 		{
-			if(arg_iter >= 16)
+			if(arg_iter > MAX_ARGS)
 			{
 				fprintf(stderr, "Error: too many process arguments\n");
 				parse_error = TRUE;
@@ -125,71 +125,96 @@ int main(void)
 					parse_error = TRUE;
 					break;
 				}
-				int redir_type;
-				if(cmd[input_iter] == '<') redir_type = 0;
-				else if(cmd[input_iter-1] != '2') redir_type = 1;
-				else //stderr
-				{
-					redir_type = 2;
-					cmd[input_iter-1] = '\0';
-				}
-				if(task_iter >= 1 && redir_type == 0) //compress these two error checks into a function
+
+				//manage different redirect types
+				int redir_type = (cmd[input_iter] == '>') ? 1 : 0;
+				int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
+				int file_mode = redir_type ? 0644 : 0444;
+
+				//cant input redirect if this in a pipe
+				if(task_iter >= 1 && redir_type == 0)
 				{
 					fprintf(stderr, "Error: mislocated input redirection");
 					parse_error = TRUE;
 					break;
 				}
-				int file_flags = redir_type ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
-				int file_mode = redir_type ? 0644 : 0444;
 
-				cmd[input_iter] = '\0';
-				input_iter++;
-				while(cmd[input_iter] == ' ') input_iter++;
+				//if there were two redirects, close the previous
+				if(tasks[task_iter].fd_redir[redir_type] != redir_type)
+					close(tasks[task_iter].fd_redir[redir_type]);
+
+				//this catches the case where there was no space before this
+				if(cmd[input_iter-1] != ' ' && cmd[input_iter-1] != '\0') 
+				{
+					arg_iter++;
+					cmd[input_iter] = '\0';
+				}
+
+				while(cmd[++input_iter] == ' '); //find start of filename
+				//check if character is valid
 				if(cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')
 				{
 					fprintf(stderr, "Error: no %sput file\n", redir_type ? "out" : "in");
 					parse_error = TRUE;
 					break;
 				}
+
+				// get filename
 				char* filename = cmd + input_iter;
-				while(cmd[input_iter] != ' ' && cmd[input_iter] != '\0') input_iter++;
-				if(cmd[input_iter] == ' ')
+				while(!(cmd[input_iter] == ' ' || cmd[input_iter] == '\0' || cmd[input_iter] == '>' || cmd[input_iter] == '<' || cmd[input_iter] == '|')) 
+					input_iter++;
+				int line_end = (cmd[input_iter] == '\0');
+				int meta_char = !(line_end) && !(cmd[input_iter] == ' ');
+				if(meta_char) //cant terminate string so need to allocate a new one
 				{
-					if(task_iter >= 1 && redir_type == 1)
-					{
-						fprintf(stderr, "Error: mislocated output redirection");
-						parse_error = TRUE;
-						break;
-					}
-					cmd[input_iter] = '\0';
-					tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
-					if(tasks[task_iter].fd_redir[redir_type]<0) 
-					{
-						fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
-						parse_error = TRUE;
-						break;
-					}
-					tasks[task_iter].args[arg_iter-1] = cmd + input_iter;
+					int length = (cmd + input_iter) - filename;
+					char* new_filename = malloc((length+1)*sizeof(char));
+					strncpy(new_filename, filename, length);
+					new_filename[length+1] = '\0';
+					filename = new_filename;
 				}
-				else if(cmd[input_iter] == '\0')
+				else //terminate string and check for spaces
 				{
-					tasks[task_iter].fd_redir[redir_type] = open(filename, file_flags, file_mode);
-					if(tasks[task_iter].fd_redir[redir_type]<0) 
-					{
-						fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
-						parse_error = TRUE;
-						break;
-					}
+					cmd[input_iter] = '\0';
+					while(cmd[input_iter+1] == ' ') input_iter++;
+				}
+
+				//open file
+				int fd = open(filename, file_flags, file_mode);
+				if(fd<0) 
+				{
+					fprintf(stderr, "Error: cannot open %sput file\n", redir_type ? "out" : "in");
+					if(meta_char) free(filename);
+					parse_error = TRUE;
+					break;
+				}
+				else tasks[task_iter].fd_redir[redir_type] = fd;
+
+				//bookeeping
+				if(line_end)
+				{
 					tasks[task_iter].args[arg_iter-1] = NULL;
 					break;
 				}
+				else if(meta_char) 
+				{
+					free(filename);
+					input_iter--;
+				}
+				tasks[task_iter].args[arg_iter-1] = cmd + input_iter + 1;
 			}
 			else if(cmd[input_iter] == '|') //piping
 			{
 				/* Error catching */
-				if(arg_iter <= 1)
+				if(arg_iter <= 1) //not enough arguements
 				{
 					fprintf(stderr, "Error: missing command\n");
+					parse_error = TRUE;
+					break;
+				}
+				else if(tasks[task_iter].fd_redir[1] != 1) //cant pipe with output redir
+				{
+					fprintf(stderr, "Error: mislocated output redirection");
 					parse_error = TRUE;
 					break;
 				}
