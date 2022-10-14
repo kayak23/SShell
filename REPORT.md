@@ -14,7 +14,7 @@ The implementation of SSHELL adheres to this general architecture:
 1. The program prompts the user for input.
 2. The program parses the user's input.
 3. The program executes the user's input and prints a completion message
-containing the exit code(s) for the program(s) specified in the user input.
+   containing the exit code(s) for the program(s) specified in the user input.
 4. The program prompts the user for input and repeats from step 2).
 
 ## Implementation
@@ -94,13 +94,13 @@ message including the collected exit codes for each program in the pipeline.
 The following built-in commands are provided in SSHELL:
 1. exit: Exits the shell. This command is implemented by simply printing
 "Bye..." and breaking the input-prompt loop of the shell.
-2. cd <dir>: Changes the current working directory to <dir>. This command is
+2. cd [dir]: Changes the current working directory to [dir]. This command is
 implemented by executing the chdir() system call on the specified directory.
 3. pwd: Prints the current working directory. This command is implemented by
 executing the getcwd() system call and printing the output.
-4. pushd <dir>: Pushes the current working directory into the directory stack
+4. pushd [dir]: Pushes the current working directory into the directory stack
 (see Notes on the Directory Stack) and changes the current working directory to
-<dir>. This command is implemented by calling the SSHELL function stack_push()
+[dir]. This command is implemented by calling the SSHELL function stack_push()
 and executing the chdir() system call.
 5. popd: Pops the top directory from the stack and changes the current working
 directory to this directory. This command is implemented by calling the SSHELL
@@ -132,12 +132,12 @@ enough space for the string in the 'stack' data member)
 During the process of parsing the command line, SSHELL also checks for illegal
 input syntax. There are six possibilities for illegal syntax:
 1. *The user has entered too many process arguments.*
-This is detected by checking the number of arguements during every loop. The
-variable arg_iter will become too big with too many arguements. There is a
-special case to check if the extra arguements are actually redirects or pipes
+This is detected by checking the number of arguments during every loop. The
+variable arg_iter will become too big with too many arguments. There is a
+special case to check if the extra arguments are actually redirects or pipes
 2. *The input is missing a command.*
-If a meta character or end of line is encountered and the number of arguements
-has not increased, then there is no command given as the first arguement. 
+If a meta character or end of line is encountered and the number of arguments
+has not increased, then there is no command given as the first argument.
 3. *An input or output redirection meta-character is missing a file.*
 After seeing the file redirect meta character, the program iterates through
 spaces to find the start of the filename. If the first character is a meta
@@ -153,23 +153,11 @@ This is found if an input redirect is found and a pipe is present.
 pipeline.*
 This is found if a pipe is found and an output redirect is present.
 
-### Delete this ??
-To handle syntax discrepancies 1), 2), and 5), our program maintains an integer
-value representing the total number of arguments for the current
-program and an integer value representing the total number of Command Structures
-created from the user input (henceforth referred to as 'arg_iter' and
-'task_iter', respectively, and initialized to one and zero, respectively).
-This catches all of the aforementioned potential syntax discrepancies:
-* The parser errs if 'arg_iter' exceeds the maximum number of allowed arguments
-* The parser errs if a meta-character is found before 'arg_iter' is greater than
-one.
-* The parser errs if an input redirection meta character was encountered when
-'task_iter' is greater than or equal to one.
-
 ### Launching Errors
 There are 2 types of launching errors that SSHELL manages:
 1. built-in command fails
 2. user command fails to exec.
+
 Built in command errors are managed within the code of the command. They check
 for the error, print the error message, and set the appropriate return value.
 cd and pushd catch an error when 'chdir' fails and returns a bad value. popd
@@ -178,4 +166,4 @@ empty.
 User commands fails to execute if the command does not exist on the system. In
 this case, the 'execvp' function will return rather than change the process.
 When that happens, the program will print the error message and then exit with
-return value 1. Since this happens in a child process, the shell is preserved
+return value 1. Since this happens in a child process, the shell is preserved.
