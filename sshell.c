@@ -58,6 +58,19 @@ void stack_print(struct Stack *st)
 	free(cwd);
 }
 
+void cleanup(struct Stack *st, struct Command *cmd)
+{
+	int i;
+	if(st != NULL)
+	{
+		for(i = st->size; i >= 0; i--)
+			free(st->stack[i]);
+		free(st->stack);
+	}
+	if(cmd != NULL)
+		free(cmd);
+}
+
 int main(void)
 {
 	char cmd[CMDLINE_MAX];
@@ -256,6 +269,7 @@ int main(void)
 				for(j = 0; j < 3; j++)
 					if(tasks[i].fd_redir[j] > 2)
 						close(tasks[i].fd_redir[j]);
+			cleanup(NULL, tasks);
 			continue;
 		}
 
@@ -282,9 +296,9 @@ int main(void)
 						for(k = 0; k < 3; k++)
 							if(tasks[j].fd_redir[k] != k)
 								close(tasks[j].fd_redir[k]);
-
 					execvp(tasks[i].args[0], tasks[i].args);
 					fprintf(stderr, "Error: command not found\n");
+					cleanup(&dir_st, tasks);
 					exit(1);
 				}
 				//close files in parent
@@ -310,7 +324,7 @@ int main(void)
 			for(i = 0; i < task_iter+1; i++) 
 				fprintf(stderr, "[%d]", retvals[i]);
 			fprintf(stderr, "\n");
-			free(tasks);
+			cleanup(NULL, tasks);
 			continue;
 		}
 		else
@@ -319,6 +333,7 @@ int main(void)
 			if(!strcmp(cmd, "exit")) 
 			{
 				fprintf(stderr, "Bye...\n+ completed 'exit' [0]\n");
+				cleanup(&dir_st, tasks);
 				break;
 			}
 			else if(!strcmp(tasks[0].args[0], "pwd"))
@@ -391,12 +406,13 @@ int main(void)
 							dup2(tasks[0].fd_redir[i], i);
 					execvp(tasks[0].args[0], tasks[0].args); //After this point, execvp must have failed
 					fprintf(stderr, "Error: command not found\n");
+					cleanup(&dir_st, tasks);
 					exit(1);
 				}
 			}
+			cleanup(NULL, tasks);
 			fprintf(stderr, "+ completed '%s' [%d]\n", dudcmd, retval);
 		}
 	}
-
 	return EXIT_SUCCESS;
 }
